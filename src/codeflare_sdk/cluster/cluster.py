@@ -36,6 +36,11 @@ from .model import (
 )
 
 
+from typing import TYPE_CHECKING
+if TYPE_CHECKING:
+    from ..job.job import JobDefinition, Job
+
+
 class Cluster:
     """
     An object for requesting, bringing up, and taking down resources.
@@ -202,6 +207,9 @@ class Cluster:
                 cluster.worker_gpu = self.config.gpu
                 pretty_print.print_clusters([cluster])
         return status, ready
+
+    def submit_job(self, job_definition: "JobDefinition") -> "Job":
+        job_definition.submit(self)
 
     def list_jobs(self) -> List:
         """
