@@ -12,11 +12,15 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-from typing import Optional
+from typing import Optional, List
 from codeflare_sdk.common import _kube_api_error_handling
 from codeflare_sdk.common.kubernetes_cluster.auth import config_check, get_api_client
 from kubernetes import client
 from kubernetes.client.exceptions import ApiException
+
+from codeflare.sdk.common.kubernetes_cluster.kube_api_helpers import (
+    get_current_namespace,
+)
 
 
 def get_default_kueue_name(namespace: str):
@@ -43,6 +47,37 @@ def get_default_kueue_name(namespace: str):
             == "true"
         ):
             return lq["metadata"]["name"]
+
+
+def list_local_queues(
+    namespace: Optional[str] = None, flavors: Optional[List[str]] = None
+):
+    if namespace is None:
+        namespace = get_current_namespace()
+    try:
+        config_check()
+        api_instance = client.CustomObjectsApi(get_api_client())
+        local_queues = api_instance.list_namespace_custom_object(
+            group="kueue.x-k8s.io",
+            version="v1beta1",
+            namespace=namespace,
+            plural="localqueues",
+        )
+    except ApiException as e:
+        return _kube_api_error_handling(e)
+    to_return = []
+    for lq in local_queues["items"]:
+        item = {"name": lq["metadata"]["name"]}
+        if lq["status"].contains("availableFlavors"):
+            item["availableFlavors"] = [
+                f["name"] for f in lq["status"]["availableFlavors"]
+            ]
+            if flavors is not None and not set(flavors).issubset(
+                set(item["availableFlavors"])
+            ):
+                continue
+        to_return.append(item)
+    return to_return
 
 
 def local_queue_exists(namespace: str, local_queue_name: str):
